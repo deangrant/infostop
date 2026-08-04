@@ -1,7 +1,11 @@
 //! Infostop: detect stop locations in GPS / mobility trajectory data.
 //!
 //! This crate ports the Infostop algorithm (sequential stay detection + Infomap
-//! clustering of stay medians). It is **std-first**: no required third-party crates.
+//! clustering of stay medians). Stay detection and edge weighting target
+//! reference Infostop behavior. Community detection uses a **simplified
+//! two-level** Infomap (greedy incremental search; no multilevel aggregation or
+//! teleportation), so partitions need not match upstream Infomap. It is
+//! **std-first**: no required third-party crates.
 //!
 //! # Quick start
 //!

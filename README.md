@@ -9,7 +9,7 @@ A trajectory is a sequence of location **points**. Each point has a position. A 
 Infostop works in two steps.
 
 1. Find **stays** in each trajectory. A stay is a group of points that stay near the same place. The distance limit for a stay is `r1`. Infostop keeps the median position of each stay.
-2. Connect stay medians that are near each other. The distance limit for a connection is `r2`. Infostop then clusters connected stays into **stops**.
+2. Connect stay medians that are near each other. The distance limit for a connection is `r2`. Infostop then clusters connected stays into **stops** (simplified two-level Infomap; not identical to upstream Infomap).
 
 Each input point gets one **label**:
 

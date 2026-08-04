@@ -416,19 +416,28 @@ impl InfostopBuilder {
     }
 }
 
+/// Deduplicate stay medians with exact float equality (numpy `unique`-style).
+///
+/// Equality uses `f64` bit patterns after optional `min_spatial_resolution`
+/// grid rounding. Near-identical coordinates that differ by floating-point
+/// drift are **not** merged unless they round to the same grid cell first.
+/// First-seen order of unique points is preserved.
 fn unique_points(points: &[Point]) -> (Vec<Point>, Vec<usize>, Vec<usize>) {
-    // Preserve first-seen order; exact float equality like numpy unique on rounded floats.
     let mut unique: Vec<Point> = Vec::new();
     let mut inverse = Vec::with_capacity(points.len());
     let mut counts: Vec<usize> = Vec::new();
+    let mut index: HashMap<(u64, u64), usize> =
+        HashMap::with_capacity(points.len());
 
     for p in points {
-        if let Some(idx) = unique.iter().position(|u| u.x == p.x && u.y == p.y)
-        {
+        let key = (p.x.to_bits(), p.y.to_bits());
+        if let Some(&idx) = index.get(&key) {
             inverse.push(idx);
             counts[idx] += 1;
         } else {
-            inverse.push(unique.len());
+            let idx = unique.len();
+            index.insert(key, idx);
+            inverse.push(idx);
             counts.push(1);
             unique.push(*p);
         }
@@ -635,5 +644,52 @@ mod tests {
         let labels = model.fit_predict(&isolated_far_stays()).unwrap();
         assert!(labels.iter().any(|&l| l >= 0));
         assert!(!model.label_medians().unwrap().is_empty());
+    }
+
+    #[test]
+    fn unique_points_collapses_exact_duplicates() {
+        let pts = [
+            Point::new(1.0, 2.0),
+            Point::new(3.0, 4.0),
+            Point::new(1.0, 2.0),
+            Point::new(3.0, 4.0),
+            Point::new(1.0, 2.0),
+        ];
+        let (unique, inverse, counts) = unique_points(&pts);
+        assert_eq!(unique.len(), 2);
+        assert_eq!(unique[0], Point::new(1.0, 2.0));
+        assert_eq!(unique[1], Point::new(3.0, 4.0));
+        assert_eq!(inverse, vec![0, 1, 0, 1, 0]);
+        assert_eq!(counts, vec![3, 2]);
+    }
+
+    #[test]
+    fn unique_points_keeps_bit_distinct_floats() {
+        let a = 1.0_f64;
+        let b = 1.0 + f64::EPSILON;
+        assert_ne!(a.to_bits(), b.to_bits());
+        let pts = [Point::new(a, 0.0), Point::new(b, 0.0)];
+        let (unique, inverse, counts) = unique_points(&pts);
+        assert_eq!(unique.len(), 2);
+        assert_eq!(inverse, vec![0, 1]);
+        assert_eq!(counts, vec![1, 1]);
+    }
+
+    #[test]
+    fn unique_points_merges_after_grid_rounding() {
+        let res = 0.1_f64;
+        let mut pts = [
+            Point::new(0.11, 0.0),
+            Point::new(0.14, 0.0),
+        ];
+        for p in &mut pts {
+            p.x = (p.x / res).round() * res;
+            p.y = (p.y / res).round() * res;
+        }
+        let (unique, inverse, counts) = unique_points(&pts);
+        assert_eq!(unique.len(), 1);
+        assert_eq!(inverse, vec![0, 0]);
+        assert_eq!(counts, vec![2]);
+        assert!((unique[0].x - 0.1).abs() < 1e-12);
     }
 }

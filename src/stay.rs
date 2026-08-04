@@ -1,0 +1,179 @@
+use crate::distance::DistanceMetric;
+use crate::types::{Point, TimedPoint, NON_STOP};
+
+/// Result of sequential stay detection for one trajectory.
+#[derive(Debug, Clone)]
+pub struct StayEvents {
+    /// Median coordinates of each accepted stay.
+    pub medians: Vec<Point>,
+    /// For each input point: stay index, or `NON_STOP` if not part of an accepted stay.
+    pub event_map: Vec<i32>,
+}
+
+/// Detect sequential stationary events (Hariharan & Toyama style), matching Infostop C++.
+pub fn get_stationary_events(
+    points: &[TimedPoint],
+    r1: f64,
+    min_size: usize,
+    min_staying_time: f64,
+    max_time_between: f64,
+    metric: &dyn DistanceMetric,
+) -> StayEvents {
+    let n = points.len();
+    if n == 0 {
+        return StayEvents {
+            medians: Vec::new(),
+            event_map: Vec::new(),
+        };
+    }
+
+    let has_time = points.iter().any(|p| p.time.is_some());
+    let mut event_map = vec![NON_STOP; n];
+    let mut medians = Vec::new();
+
+    let mut lats: Vec<f64> = Vec::new();
+    let mut lons: Vec<f64> = Vec::new();
+    insert_ordered(&mut lats, points[0].point.x);
+    insert_ordered(&mut lons, points[0].point.y);
+    let mut i0 = 0usize;
+    let mut stay_idx = 0i32;
+
+    for i in 1..n {
+        let ddist = metric.distance(
+            points[i].point,
+            Point::new(median(&lats), median(&lons)),
+        );
+
+        let join = if has_time {
+            let t_prev = points[i - 1].time.unwrap_or(0.0);
+            let t_curr = points[i].time.unwrap_or(t_prev);
+            let dtime = t_curr - t_prev;
+            ddist <= r1 && dtime <= max_time_between
+        } else {
+            ddist <= r1
+        };
+
+        if join {
+            insert_ordered(&mut lats, points[i].point.x);
+            insert_ordered(&mut lons, points[i].point.y);
+        } else {
+            let accept = if has_time {
+                let t_start = points[i0].time.unwrap_or(0.0);
+                let t_end = points[i - 1].time.unwrap_or(t_start);
+                i - i0 >= min_size && (t_end - t_start) >= min_staying_time
+            } else {
+                i - i0 >= min_size
+            };
+
+            if accept {
+                medians.push(Point::new(median(&lats), median(&lons)));
+                for slot in &mut event_map[i0..i] {
+                    *slot = stay_idx;
+                }
+                stay_idx += 1;
+            } else {
+                for slot in &mut event_map[i0..i] {
+                    *slot = NON_STOP;
+                }
+            }
+
+            lats.clear();
+            lons.clear();
+            insert_ordered(&mut lats, points[i].point.x);
+            insert_ordered(&mut lons, points[i].point.y);
+            i0 = i;
+        }
+    }
+
+    // Final group
+    let accept = if has_time {
+        let t_start = points[i0].time.unwrap_or(0.0);
+        let t_end = points[n - 1].time.unwrap_or(t_start);
+        n - i0 >= min_size && (t_end - t_start) >= min_staying_time
+    } else {
+        n - i0 >= min_size
+    };
+
+    if accept {
+        medians.push(Point::new(median(&lats), median(&lons)));
+        for slot in &mut event_map[i0..n] {
+            *slot = stay_idx;
+        }
+    } else {
+        for slot in &mut event_map[i0..n] {
+            *slot = NON_STOP;
+        }
+    }
+
+    StayEvents { medians, event_map }
+}
+
+fn median(sorted: &[f64]) -> f64 {
+    // Incoming vector is kept sorted via insert_ordered.
+    let i0 = (sorted.len() - 1) / 2;
+    let i1 = sorted.len() / 2;
+    0.5 * (sorted[i0] + sorted[i1])
+}
+
+fn insert_ordered(arr: &mut Vec<f64>, elem: f64) {
+    let pos = arr.partition_point(|&x| x <= elem);
+    arr.insert(pos, elem);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::distance::Euclidean;
+
+    #[test]
+    fn detects_two_stays_without_time() {
+        // Stay A around (0,0), trip, stay B around (100,0)
+        let mut pts = Vec::new();
+        for i in 0..5 {
+            pts.push(TimedPoint::new(0.0 + (i as f64) * 0.1, 0.0));
+        }
+        pts.push(TimedPoint::new(50.0, 0.0)); // trip point
+        for i in 0..5 {
+            pts.push(TimedPoint::new(100.0 + (i as f64) * 0.1, 0.0));
+        }
+
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 300.0, 86400.0, &Euclidean);
+        assert_eq!(events.medians.len(), 2);
+        assert!(events.event_map[0] >= 0);
+        assert_eq!(events.event_map[5], NON_STOP);
+        assert!(events.event_map[6] >= 0);
+        assert_ne!(events.event_map[0], events.event_map[6]);
+    }
+
+    #[test]
+    fn rejects_short_timed_stay() {
+        let pts = vec![
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, 10.0),
+            TimedPoint::with_time(0.2, 0.0, 20.0),
+            TimedPoint::with_time(100.0, 0.0, 30.0),
+        ];
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 300.0, 86400.0, &Euclidean);
+        assert!(events.medians.is_empty());
+        assert!(events.event_map.iter().all(|&l| l == NON_STOP));
+    }
+
+    #[test]
+    fn time_gap_splits_stay() {
+        let pts = vec![
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, 100.0),
+            TimedPoint::with_time(0.2, 0.0, 200.0),
+            // gap larger than max_time_between
+            TimedPoint::with_time(0.3, 0.0, 200.0 + 100_000.0),
+            TimedPoint::with_time(0.4, 0.0, 200.0 + 100_100.0),
+            TimedPoint::with_time(0.5, 0.0, 200.0 + 100_200.0),
+        ];
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 150.0, 1000.0, &Euclidean);
+        // First stay duration 200 >= 150, second stay duration 200 >= 150
+        assert_eq!(events.medians.len(), 2);
+    }
+}

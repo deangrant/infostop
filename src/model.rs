@@ -313,6 +313,13 @@ where
                 }
             }
 
+            let timed = pts.iter().filter(|p| p.time.is_some()).count();
+            if timed != 0 && timed != pts.len() {
+                return Err(Error::InvalidInput(format!(
+                    "{prefix}timestamps must be present on all points or on none"
+                )));
+            }
+
             let times: Vec<f64> = pts.iter().filter_map(|p| p.time).collect();
             if times.len() > 1 {
                 for w in times.windows(2) {
@@ -539,5 +546,44 @@ mod tests {
 
         let bad_lon = model.fit_predict(&[[0.0, 181.0], [0.0, 181.0]]);
         assert!(matches!(bad_lon, Err(Error::InvalidInput(_))));
+    }
+
+    #[test]
+    fn rejects_mixed_timestamps_on_one_trajectory() {
+        let mut model = Infostop::builder()
+            .r1(100.0)
+            .r2(100.0)
+            .min_size(2)
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+
+        let trace = [
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::new(0.1, 0.0),
+            TimedPoint::with_time(0.2, 0.0, 60.0),
+        ];
+        let err = model.fit_predict(&trace);
+        assert!(matches!(err, Err(Error::InvalidInput(_))));
+    }
+
+    #[test]
+    fn accepts_fully_timed_trajectory() {
+        let mut model = Infostop::builder()
+            .r1(100.0)
+            .r2(100.0)
+            .min_size(2)
+            .min_staying_time(50.0)
+            .max_time_between(10_000.0)
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+
+        let trace = [
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, 60.0),
+            TimedPoint::with_time(0.2, 0.0, 120.0),
+        ];
+        assert!(model.fit_predict(&trace).is_ok());
     }
 }

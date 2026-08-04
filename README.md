@@ -150,6 +150,7 @@ fn main() -> infostop::Result<()> {
 - One point with time: `[x, y, time]` or `[latitude, longitude, time]`.
 - One trajectory: a list of points.
 - Several trajectories: a list of trajectories for `fit_predict_many`.
+- Within one trajectory, every point must include a timestamp, or none of them may. Mixed timestamps are rejected.
 
 ### Output
 

@@ -27,7 +27,7 @@ pub fn get_stationary_events(
         };
     }
 
-    let has_time = points.iter().any(|p| p.time.is_some());
+    let has_time = points.iter().all(|p| p.time.is_some());
     let mut event_map = vec![NON_STOP; n];
     let mut medians = Vec::new();
 
@@ -45,8 +45,8 @@ pub fn get_stationary_events(
         );
 
         let join = if has_time {
-            let t_prev = points[i - 1].time.unwrap_or(0.0);
-            let t_curr = points[i].time.unwrap_or(t_prev);
+            let t_prev = points[i - 1].time.expect("all points timed");
+            let t_curr = points[i].time.expect("all points timed");
             let dtime = t_curr - t_prev;
             ddist <= r1 && dtime <= max_time_between
         } else {
@@ -58,8 +58,8 @@ pub fn get_stationary_events(
             insert_ordered(&mut lons, points[i].point.y);
         } else {
             let accept = if has_time {
-                let t_start = points[i0].time.unwrap_or(0.0);
-                let t_end = points[i - 1].time.unwrap_or(t_start);
+                let t_start = points[i0].time.expect("all points timed");
+                let t_end = points[i - 1].time.expect("all points timed");
                 i - i0 >= min_size && (t_end - t_start) >= min_staying_time
             } else {
                 i - i0 >= min_size
@@ -87,8 +87,8 @@ pub fn get_stationary_events(
 
     // Final group
     let accept = if has_time {
-        let t_start = points[i0].time.unwrap_or(0.0);
-        let t_end = points[n - 1].time.unwrap_or(t_start);
+        let t_start = points[i0].time.expect("all points timed");
+        let t_end = points[n - 1].time.expect("all points timed");
         n - i0 >= min_size && (t_end - t_start) >= min_staying_time
     } else {
         n - i0 >= min_size

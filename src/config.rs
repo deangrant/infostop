@@ -76,9 +76,9 @@ impl Config {
         if self.min_size <= 1 {
             return Err(Error::InvalidInput("`min_size` must be > 1".into()));
         }
-        if !(0.0..=1.0).contains(&self.min_spatial_resolution) {
+        if !self.min_spatial_resolution.is_finite() || self.min_spatial_resolution < 0.0 {
             return Err(Error::InvalidInput(
-                "`min_spatial_resolution` must be within [0, 1]".into(),
+                "`min_spatial_resolution` must be finite and >= 0".into(),
             ));
         }
         if !self.weight_exponent.is_finite() {
@@ -201,6 +201,7 @@ mod tests {
             ("r2", |c, v| c.r2 = v),
             ("min_staying_time", |c, v| c.min_staying_time = v),
             ("max_time_between", |c, v| c.max_time_between = v),
+            ("min_spatial_resolution", |c, v| c.min_spatial_resolution = v),
             ("weight_exponent", |c, v| c.weight_exponent = v),
         ];
 
@@ -214,5 +215,24 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn accepts_general_min_spatial_resolution() {
+        for res in [0.0, 1e-5, 5.0] {
+            let mut cfg = Config::default();
+            cfg.min_spatial_resolution = res;
+            assert!(
+                cfg.validate().is_ok(),
+                "expected min_spatial_resolution={res} to be valid"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_negative_min_spatial_resolution() {
+        let mut cfg = Config::default();
+        cfg.min_spatial_resolution = -1.0;
+        assert!(cfg.validate().is_err());
     }
 }

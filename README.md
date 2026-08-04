@@ -169,7 +169,7 @@ fn main() -> infostop::Result<()> {
 | `max_time_between` | `86400` | Maximum time gap between two points in the same stay. |
 | `min_size` | `2` | Minimum number of points in a stay. The value must be greater than `1`. |
 | `label_singleton` | `true` | If `true`, give a label to an isolated stay. If `false`, use `-1`. |
-| `min_spatial_resolution` | `0` | Grid step for stay positions before unique filtering. Use `0` to disable. |
+| `min_spatial_resolution` | `0` | Grid step in the same units as coordinates, applied to stay positions before unique filtering. Use `0` to disable. |
 | `distance_metric` | `Haversine` | Use `Haversine` for geographic data. Use `Euclidean` for planar data. |
 | `weighted` | `false` | If `true`, use inverse distance as edge weight. |
 | `seed` | `42` | Random seed for clustering. |

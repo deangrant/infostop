@@ -8,11 +8,20 @@ use crate::model::Infostop;
 use crate::neighbors::NeighborQuery;
 use crate::types::NON_STOP;
 
+/// Pinned CDN head with Subresource Integrity for Leaflet 1.9.4 and leaflet.heat 0.2.0.
+///
+/// Hashes are sha384 of the exact unpkg bytes for those versions (verified 2026-08-04).
+const CDN_HEAD: &str = r#"  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H" crossorigin="anonymous"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js" integrity="sha384-mFKkGiGvT5vo1fEyGCD3hshDdKmW3wzXW/x+fWriYJArD0R3gawT6lMvLboM22c0" crossorigin="anonymous"></script>"#;
+
 /// Write a Leaflet HTML map visualizing stop locations from a fitted model.
 ///
 /// Requires `distance_metric == Haversine` (geographic coordinates).
 ///
-/// Open the resulting file in a browser to inspect stops.
+/// Open the resulting file in a browser to inspect stops. Leaflet JS/CSS are
+/// loaded from a pinned CDN URL with Subresource Integrity. Basemap raster
+/// tiles still come from OpenStreetMap and are not integrity-checked.
 pub fn plot_map<P, D, N>(model: &Infostop<D, N>, path: P) -> Result<()>
 where
     P: AsRef<Path>,
@@ -84,9 +93,7 @@ where
   <meta charset="utf-8"/>
   <title>Infostop map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+{cdn_head}
   <style>html, body, #map {{ height: 100%; margin: 0; }}</style>
 </head>
 <body>
@@ -107,6 +114,7 @@ heat.addTo(map);
 </body>
 </html>
 "#,
+        cdn_head = CDN_HEAD,
         center_lat = center_lat,
         center_lon = center_lon,
         median_markers = median_markers,
@@ -125,4 +133,17 @@ fn color_for_label(label: i32) -> &'static str {
     ];
     let idx = label.rem_euclid(COLORS.len() as i32) as usize;
     COLORS[idx]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cdn_head_includes_sri() {
+        assert!(CDN_HEAD.contains("integrity=\"sha384-"));
+        assert!(CDN_HEAD.contains("crossorigin=\"anonymous\""));
+        assert_eq!(CDN_HEAD.matches("integrity=").count(), 3);
+        assert_eq!(CDN_HEAD.matches("crossorigin=").count(), 3);
+    }
 }

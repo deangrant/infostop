@@ -126,6 +126,9 @@ fn main() -> infostop::Result<()> {
 3. Call `plot_map`.
 4. Open the HTML file in a browser.
 
+The generated HTML loads pinned Leaflet JS/CSS from a CDN with Subresource Integrity.
+Basemap tiles still load from OpenStreetMap and are not integrity-checked.
+
 ```rust
 use infostop::{plot_map, Infostop};
 

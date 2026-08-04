@@ -26,8 +26,9 @@ impl DistanceMetric for Haversine {
         let d_lon = (b.y - a.y).to_radians();
         let lat1 = a.x.to_radians();
         let lat2 = b.x.to_radians();
-        let h = (d_lat / 2.0).sin().powi(2)
-            + (d_lon / 2.0).sin().powi(2) * lat1.cos() * lat2.cos();
+        let h = ((d_lat / 2.0).sin().powi(2)
+            + (d_lon / 2.0).sin().powi(2) * lat1.cos() * lat2.cos())
+            .clamp(0.0, 1.0);
         2.0 * EARTH_RADIUS_M * h.sqrt().asin()
     }
 }
@@ -55,6 +56,7 @@ pub fn metric_for(kind: MetricKind) -> Box<dyn DistanceMetric> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::PI;
 
     fn close(a: f64, b: f64, tol: f64) -> bool {
         (a - b).abs() <= tol
@@ -64,6 +66,28 @@ mod tests {
     fn haversine_zero_for_same_point() {
         let p = Point::lat_lon(55.0, 12.0);
         assert!(close(Haversine.distance(p, p), 0.0, 1e-9));
+    }
+
+    #[test]
+    fn haversine_antipodal_is_finite_and_half_circumference() {
+        let a = Point::lat_lon(0.0, 0.0);
+        let b = Point::lat_lon(0.0, 180.0);
+        let d = Haversine.distance(a, b);
+        assert!(d.is_finite(), "antipodal distance must be finite, got {d}");
+        let expected = PI * EARTH_RADIUS_M;
+        assert!(
+            close(d, expected, 1e-6),
+            "antipodal distance {d} vs πR {expected}"
+        );
+    }
+
+    #[test]
+    fn haversine_near_antipodal_is_finite() {
+        let a = Point::lat_lon(0.0, 0.0);
+        let b = Point::lat_lon(1e-12, 180.0);
+        let d = Haversine.distance(a, b);
+        assert!(d.is_finite(), "near-antipodal distance must be finite, got {d}");
+        assert!(d > 0.0);
     }
 
     #[test]

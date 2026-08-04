@@ -217,6 +217,10 @@ where
             &singletons,
         );
 
+        if unique_labels.iter().all(|&l| l == NON_STOP) {
+            return Err(Error::NoStopsFound);
+        }
+
         // Reverse spatial unique: label per stay event (in all_medians order).
         let stay_labels: Vec<StopLabel> =
             inverse.iter().map(|&idx| unique_labels[idx]).collect();
@@ -585,5 +589,51 @@ mod tests {
             TimedPoint::with_time(0.2, 0.0, 120.0),
         ];
         assert!(model.fit_predict(&trace).is_ok());
+    }
+
+    fn isolated_far_stays() -> Vec<[f64; 2]> {
+        let mut trace = Vec::new();
+        for i in 0..4 {
+            trace.push([0.0, i as f64 * 0.01]);
+        }
+        for i in 0..4 {
+            trace.push([1000.0, i as f64 * 0.01]);
+        }
+        trace
+    }
+
+    #[test]
+    fn all_singletons_without_labeling_are_no_stops_found() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(0.5)
+            .min_size(2)
+            .label_singleton(false)
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+
+        let err = model.fit_predict(&isolated_far_stays());
+        assert_eq!(err, Err(Error::NoStopsFound));
+        assert!(matches!(
+            model.label_medians(),
+            Err(Error::NotFitted)
+        ));
+    }
+
+    #[test]
+    fn all_singletons_with_labeling_succeed() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(0.5)
+            .min_size(2)
+            .label_singleton(true)
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+
+        let labels = model.fit_predict(&isolated_far_stays()).unwrap();
+        assert!(labels.iter().any(|&l| l >= 0));
+        assert!(!model.label_medians().unwrap().is_empty());
     }
 }

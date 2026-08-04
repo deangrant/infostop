@@ -20,7 +20,7 @@ impl fmt::Display for Error {
             Error::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
             Error::NoStopsFound => write!(
                 f,
-                "no stop events found; check that `r1`, `min_staying_time`, and `min_size` are chosen correctly"
+                "no stop locations labeled; check that `r1`, `min_staying_time`, `min_size`, and `label_singleton` are chosen correctly"
             ),
             Error::NotFitted => write!(f, "model must be fitted before this method can be used"),
             Error::Io(msg) => write!(f, "I/O error: {msg}"),

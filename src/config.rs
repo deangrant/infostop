@@ -221,7 +221,7 @@ mod tests {
             ("min_staying_time", |c, v| c.min_staying_time = v),
             ("max_time_between", |c, v| c.max_time_between = v),
             ("min_spatial_resolution", |c, v| {
-                c.min_spatial_resolution = v
+                c.min_spatial_resolution = v;
             }),
             ("weight_exponent", |c, v| c.weight_exponent = v),
         ];

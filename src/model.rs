@@ -262,9 +262,7 @@ where
 
             let labels: Vec<StopLabel> = event_map
                 .into_iter()
-                .map(|e| {
-                    usize::try_from(e).map(|i| lookup[i]).unwrap_or(NON_STOP)
-                })
+                .map(|e| usize::try_from(e).map_or(NON_STOP, |i| lookup[i]))
                 .collect();
             output.push(labels);
         }

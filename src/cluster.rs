@@ -79,10 +79,8 @@ impl CommunityDetector for InfomapDetector {
                 .filter(|&l| l >= 0)
                 .max()
                 .unwrap_or(-1);
-            let mut next = max_label + 1;
-            for &n in singleton_nodes {
+            for (next, &n) in (max_label + 1..).zip(singleton_nodes.iter()) {
                 labels[n] = next;
-                next += 1;
             }
         }
 

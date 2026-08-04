@@ -9,16 +9,17 @@ A trajectory is a sequence of location **points**. Each point has a position. A 
 Infostop works in two steps.
 
 1. Find **stays** in each trajectory. A stay is a group of points that stay near the same place. The distance limit for a stay is `r1`. Infostop keeps the median position of each stay.
-2. Connect stay medians that are near each other. The distance limit for a connection is `r2`. Infostop then clusters connected stays into **stops** (simplified two-level Infomap; not identical to upstream Infomap).
+2. Connect stay medians that are near each other. The distance limit for a connection is `r2`. Infostop then clusters connected stays into **stops**. Clustering uses a simplified two-level Infomap method. This method is not identical to upstream Infomap.
 
 Each input point gets one **label**:
 
 - A label `>= 0` is a stop id.
-- The label `-1` means the point is not part of a stop (for example, movement).
+- The label `-1` means the point is not part of a stop. Movement is one example.
 
 ## Requirements
 
 - Use Rust and Cargo.
+- Use Rust 1.74 or later (MSRV).
 - This crate has no required third-party dependencies.
 - Enable the optional `plot` feature to write a map file.
 
@@ -42,12 +43,12 @@ infostop = { version = "0.1", features = ["plot"] }
 
 ### One trajectory
 
-1. Create a model.
+1. Create a model with the builder.
 2. Set the parameters that you need.
 3. Call `fit_predict` with one trajectory.
 4. Call `label_medians` to get the stop positions.
 
-Use `[x, y]` points with `MetricKind::Euclidean`. Use `[latitude, longitude]` points with the default `Haversine` metric.
+Use `[x, y]` points with `MetricKind::Euclidean`. Use `[latitude, longitude]` points with the default `Haversine` metric. Haversine distances use metres. Euclidean distances use the same units as your coordinates.
 
 ```rust
 use infostop::{Infostop, MetricKind};
@@ -126,8 +127,8 @@ fn main() -> infostop::Result<()> {
 3. Call `plot_map`.
 4. Open the HTML file in a browser.
 
-The generated HTML loads pinned Leaflet JS/CSS from a CDN with Subresource Integrity.
-Basemap tiles still load from OpenStreetMap and are not integrity-checked.
+The generated HTML loads pinned Leaflet JS and CSS from a CDN with Subresource Integrity.
+Basemap tiles still load from OpenStreetMap. Those tiles are not integrity-checked.
 
 ```rust
 use infostop::{plot_map, Infostop};
@@ -165,20 +166,28 @@ fn main() -> infostop::Result<()> {
 
 ## Parameters
 
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `r1` | `10` | Maximum distance from the stay median for a point to join that stay. |
-| `r2` | `10` | Maximum distance between stay medians for a network connection. |
-| `min_staying_time` | `300` | Minimum stay duration. Infostop ignores this value when the data has no time. |
-| `max_time_between` | `86400` | Maximum time gap between two points in the same stay. |
-| `min_size` | `2` | Minimum number of points in a stay. The value must be greater than `1`. |
-| `label_singleton` | `true` | If `true`, give a label to an isolated stay. If `false`, use `-1`. |
-| `min_spatial_resolution` | `0` | Grid step in the same units as coordinates, applied before exact unique filtering of stay positions. Use `0` to disable (bit-identical coordinates only). |
-| `distance_metric` | `Haversine` | Use `Haversine` for geographic data. Use `Euclidean` for planar data. |
-| `weighted` | `false` | If `true`, use inverse distance as edge weight. |
-| `seed` | `42` | Random seed for clustering. |
+Set these values on the builder. Defaults come from `Config::default`.
+
+- `r1` (default `10`): Maximum distance from the stay median for a point to join that stay.
+- `r2` (default `10`): Maximum distance between stay medians for a network connection.
+- `min_staying_time` (default `300`): Minimum stay duration. Infostop ignores this value when the data has no time.
+- `max_time_between` (default `86400`): Maximum time gap between two points in the same stay.
+- `min_size` (default `2`): Minimum number of points in a stay. The value must be greater than `1`.
+- `label_singleton` (default `true`): If `true`, give a label to an isolated stay. If `false`, use `-1`.
+- `min_spatial_resolution` (default `0`): Grid step in the same units as coordinates. Infostop applies this step before exact unique filtering of stay positions. Use `0` to disable.
+- `distance_metric` (default `Haversine`): Use `Haversine` for geographic data. Use `Euclidean` for planar data.
+- `weighted` (default `false`): If `true`, use inverse distance as edge weight.
+- `weight_exponent` (default `1.0`): Exponent for weighted edges. The weight is `count * distance^(-exponent)` when `weighted` is `true`.
+- `seed` (default `42`): Random seed for clustering.
 
 If the trajectory has no time values, only `r1` and `min_size` control stay detection.
+
+## Errors
+
+- `InvalidInput`: The config or the input data is not valid.
+- `NoStopsFound`: Fitting did not produce stop labels. Check `r1`, `min_staying_time`, `min_size`, and `label_singleton`.
+- `NotFitted`: You called a method that needs a fitted model before you fitted the model.
+- `Io`: A file operation failed. Writing a map file is one example.
 
 ## Examples
 
@@ -197,7 +206,7 @@ cargo run --example plot_stops --features plot
 Run the tests.
 
 ```bash
-cargo test
+cargo test --all-features
 ```
 
 ## Security

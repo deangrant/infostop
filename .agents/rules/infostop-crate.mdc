@@ -1,0 +1,40 @@
+---
+description: Infostop Rust crate policies — deps, API, CI parity, commits
+alwaysApply: true
+---
+
+# Infostop crate policy
+
+## Dependencies
+
+- Prefer in-crate / `std` implementations.
+- Do **not** add Cargo `[dependencies]` without an explicit user ask.
+- Optional `plot` feature stays empty of third-party crates.
+
+## Code quality
+
+- `unsafe_code` is forbidden (`Cargo.toml` lints).
+- Match clippy settings in `Cargo.toml` (`all` deny, `pedantic` warn).
+- Format with project `rustfmt.toml` (`max_width = 80`).
+
+## Public API
+
+Stable surface: `Infostop::builder`, `fit_predict`, `fit_predict_many`, `label_medians`. Optional `plot_map` behind `--features plot`.
+
+Community detection is a **simplified** in-crate Infomap. Do not claim equivalence to upstream Infomap, and do not change partition semantics casually.
+
+## Local verify (CI parity)
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+cargo build --examples --all-features
+```
+
+MSRV is `1.74` (`rust-version` in `Cargo.toml`). For audit: generate a lockfile if missing, then `cargo audit` (uses `.cargo/audit.toml`).
+
+## Git
+
+- Do not commit unless the user asks.
+- If asked for a commit message only, draft a conventional commit and stop (do not run `git commit`).

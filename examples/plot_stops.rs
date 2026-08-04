@@ -9,13 +9,13 @@ fn main() -> infostop::Result<()> {
 
     let mut trace = Vec::new();
     for i in 0..12 {
-        let jitter = (i as f64) * 0.00001;
-        trace.push([home.0 + jitter, home.1, i as f64 * 60.0]);
+        let jitter = f64::from(i) * 0.00001;
+        trace.push([home.0 + jitter, home.1, f64::from(i) * 60.0]);
     }
     // Trip samples
     for i in 0..5 {
-        let t = 12.0 * 60.0 + i as f64 * 60.0;
-        let f = (i as f64 + 1.0) / 6.0;
+        let t = 12.0 * 60.0 + f64::from(i) * 60.0;
+        let f = (f64::from(i) + 1.0) / 6.0;
         trace.push([
             home.0 + (work.0 - home.0) * f,
             home.1 + (work.1 - home.1) * f,
@@ -23,8 +23,8 @@ fn main() -> infostop::Result<()> {
         ]);
     }
     for i in 0..12 {
-        let jitter = (i as f64) * 0.00001;
-        let t = 20.0 * 60.0 + i as f64 * 60.0;
+        let jitter = f64::from(i) * 0.00001;
+        let t = 20.0 * 60.0 + f64::from(i) * 60.0;
         trace.push([work.0 + jitter, work.1, t]);
     }
 

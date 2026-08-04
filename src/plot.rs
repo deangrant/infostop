@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::fs;
 use std::path::Path;
 
@@ -22,6 +23,13 @@ const CDN_HEAD: &str = r#"  <link rel="stylesheet" href="https://unpkg.com/leafl
 /// Open the resulting file in a browser to inspect stops. Leaflet JS/CSS are
 /// loaded from a pinned CDN URL with Subresource Integrity. Basemap raster
 /// tiles still come from OpenStreetMap and are not integrity-checked.
+///
+/// # Errors
+///
+/// Returns [`Error::InvalidInput`] if the model is not using Haversine,
+/// [`Error::NotFitted`] if the model has not been fitted,
+/// [`Error::NoStopsFound`] if there are no stationary points,
+/// or [`Error::Io`] if writing `path` fails.
 pub fn plot_map<P, D, N>(model: &Infostop<D, N>, path: P) -> Result<()>
 where
     P: AsRef<Path>,
@@ -48,7 +56,9 @@ where
         lat_sum += p.x;
         lon_sum += p.y;
     }
+    #[allow(clippy::cast_precision_loss)] // map center; point counts stay modest
     let center_lat = lat_sum / points.len() as f64;
+    #[allow(clippy::cast_precision_loss)]
     let center_lon = lon_sum / points.len() as f64;
 
     let mut markers = String::new();
@@ -57,25 +67,25 @@ where
             continue;
         }
         let color = color_for_label(lab);
-        markers.push_str(&format!(
-            "L.circleMarker([{lat}, {lon}], {{radius: 5, color: '{color}', fillColor: '{color}', fillOpacity: 0.7}}).addTo(map).bindPopup('stop {lab}');\n",
-            lat = p.x,
-            lon = p.y,
-            color = color,
-            lab = lab,
-        ));
+        let _ = writeln!(
+            markers,
+            "L.circleMarker([{}, {}], {{radius: 5, color: '{color}', fillColor: '{color}', fillOpacity: 0.7}}).addTo(map).bindPopup('stop {lab}');",
+            p.x,
+            p.y,
+        );
     }
 
     let mut median_markers = String::new();
     for (&lab, p) in &medians {
         let color = color_for_label(lab);
-        median_markers.push_str(&format!(
-            "L.marker([{lat}, {lon}]).addTo(map).bindPopup('median stop {lab}');\nL.circle([{lat}, {lon}], {{radius: 25, color: '{color}', fillColor: '{color}', fillOpacity: 0.15}}).addTo(map);\n",
-            lat = p.x,
-            lon = p.y,
-            color = color,
-            lab = lab,
-        ));
+        let _ = writeln!(
+            median_markers,
+            "L.marker([{}, {}]).addTo(map).bindPopup('median stop {lab}');\nL.circle([{}, {}], {{radius: 25, color: '{color}', fillColor: '{color}', fillOpacity: 0.15}}).addTo(map);",
+            p.x,
+            p.y,
+            p.x,
+            p.y,
+        );
     }
 
     let heat_pts: Vec<String> = points
@@ -93,7 +103,7 @@ where
   <meta charset="utf-8"/>
   <title>Infostop map</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-{cdn_head}
+{CDN_HEAD}
   <style>html, body, #map {{ height: 100%; margin: 0; }}</style>
 </head>
 <body>
@@ -113,13 +123,7 @@ heat.addTo(map);
 </script>
 </body>
 </html>
-"#,
-        cdn_head = CDN_HEAD,
-        center_lat = center_lat,
-        center_lon = center_lon,
-        median_markers = median_markers,
-        markers = markers,
-        heat_js = heat_js,
+"#
     );
 
     fs::write(path.as_ref(), html)?;
@@ -131,6 +135,11 @@ fn color_for_label(label: i32) -> &'static str {
         "#e41a1c", "#377eb8", "#4daf4a", "#984ea3", "#ff7f00", "#a65628",
         "#f781bf", "#999999", "#66c2a5", "#fc8d62", "#8da0cb", "#e78ac3",
     ];
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_possible_wrap,
+        clippy::cast_sign_loss
+    )] // palette index from rem_euclid into a small const table
     let idx = label.rem_euclid(COLORS.len() as i32) as usize;
     COLORS[idx]
 }

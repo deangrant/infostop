@@ -61,7 +61,14 @@ impl CommunityDetector for InfomapDetector {
             let modules = run_infomap(&network, self.seed, self.trials);
             for (infomap_idx, module) in modules.into_iter().enumerate() {
                 let orig = inverse[infomap_idx];
-                labels[orig] = module as StopLabel;
+                // Module ids are dense and tiny relative to StopLabel (i32).
+                #[allow(
+                    clippy::cast_possible_truncation,
+                    clippy::cast_possible_wrap
+                )]
+                {
+                    labels[orig] = module as StopLabel;
+                }
             }
         }
 
@@ -102,6 +109,7 @@ pub fn build_edges(
             if neighbor <= node {
                 continue;
             }
+            #[allow(clippy::cast_precision_loss)] // edge weight from visit counts
             let mut weight = counts[node].max(counts[neighbor]) as f64;
             if let Some(dists) = distances {
                 let d = dists[node][k].max(1e-12);

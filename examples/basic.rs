@@ -13,12 +13,12 @@ fn main() -> infostop::Result<()> {
     // Stay near origin, short trip, stay near x=100.
     let mut trace = Vec::new();
     for i in 0..10 {
-        trace.push([0.0, i as f64 * 0.05]);
+        trace.push([0.0, f64::from(i) * 0.05]);
     }
     trace.push([40.0, 0.0]);
     trace.push([70.0, 0.0]);
     for i in 0..10 {
-        trace.push([100.0, i as f64 * 0.05]);
+        trace.push([100.0, f64::from(i) * 0.05]);
     }
 
     let labels = model.fit_predict(&trace)?;

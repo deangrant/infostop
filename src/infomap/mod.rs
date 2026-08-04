@@ -79,7 +79,11 @@ impl Rng64 {
         if len == 0 {
             return 0;
         }
-        (self.next_u64() as usize) % len
+        // PRNG output folded into an index; truncation on 32-bit is acceptable.
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            (self.next_u64() as usize) % len
+        }
     }
 
     fn shuffle<T>(&mut self, items: &mut [T]) {
@@ -105,7 +109,7 @@ struct MapState {
     partition: Vec<usize>,
     modules: HashMap<usize, ModuleStats>,
     two_m: f64,
-    /// Σ_u plogp(strength[u] / two_m); partition-invariant.
+    /// `Σ_u` `plogp`(`strength[u]` / `two_m`); partition-invariant.
     node_plogp_sum: f64,
     q_exit: f64,
     description_length: f64,
@@ -281,7 +285,7 @@ impl MapState {
     }
 }
 
-/// Change in L from updating modules src/dest and q_exit (node plogp constant cancels).
+/// Change in `L` from updating modules `src`/`dest` and `q_exit` (node plogp constant cancels).
 fn module_pair_delta_l(
     two_m: f64,
     q_exit: f64,
@@ -343,11 +347,12 @@ fn optimize_partition(
     partition: &mut [usize],
     rng: &mut Rng64,
 ) {
+    const MAX_ROUNDS: usize = 100;
+
     let n = network.n;
     let mut state = MapState::from_partition(network, partition);
     let mut improved = true;
     let mut rounds = 0usize;
-    const MAX_ROUNDS: usize = 100;
 
     while improved && rounds < MAX_ROUNDS {
         improved = false;

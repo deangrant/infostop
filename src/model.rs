@@ -51,6 +51,10 @@ where
 
 impl Infostop<InfomapDetector, BruteForceNeighbors> {
     /// Create a model with default hyperparameters (matching the Python package).
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`Config::default`] fails validation (it is expected to be valid).
     pub fn new() -> Self {
         Self::from_config(Config::default()).expect("default config is valid")
     }
@@ -62,6 +66,11 @@ impl Infostop<InfomapDetector, BruteForceNeighbors> {
         }
     }
 
+    /// Build a model from an explicit [`Config`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] when [`Config::validate`] fails.
     pub fn from_config(config: Config) -> Result<Self> {
         config.validate()?;
         let detector = InfomapDetector {
@@ -91,6 +100,10 @@ where
     N: NeighborQuery,
 {
     /// Inject custom detector / neighbor query (composition root / tests).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] when [`Config::validate`] fails.
     pub fn with_parts(
         config: Config,
         detector: D,
@@ -116,6 +129,11 @@ where
     }
 
     /// Fit on a single trajectory and return a label per point.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for empty or invalid traces,
+    /// [`Error::NoStopsFound`] when no stop labels are produced.
     pub fn fit_predict<T>(&mut self, trace: &[T]) -> Result<Vec<StopLabel>>
     where
         T: Into<TimedPoint> + Copy,
@@ -127,6 +145,11 @@ where
     /// Fit on multiple trajectories; stop locations are shared across traces.
     ///
     /// Each trajectory may be a slice of `[f64; 2]`, `[f64; 3]`, [`TimedPoint`], etc.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] for empty or invalid traces,
+    /// [`Error::NoStopsFound`] when no stop labels are produced.
     pub fn fit_predict_many<T, U>(
         &mut self,
         traces: &[T],
@@ -146,7 +169,7 @@ where
             .map(|t| t.as_ref().iter().map(|p| (*p).into()).collect())
             .collect();
         let refs: Vec<&[TimedPoint]> =
-            converted.iter().map(|v| v.as_slice()).collect();
+            converted.iter().map(Vec::as_slice).collect();
         self.fit_predict_slices(&refs)
     }
 
@@ -239,7 +262,11 @@ where
 
             let labels: Vec<StopLabel> = event_map
                 .into_iter()
-                .map(|e| if e < 0 { NON_STOP } else { lookup[e as usize] })
+                .map(|e| {
+                    usize::try_from(e)
+                        .map(|i| lookup[i])
+                        .unwrap_or(NON_STOP)
+                })
                 .collect();
             output.push(labels);
         }
@@ -251,6 +278,10 @@ where
     }
 
     /// Median coordinate of each stop label from the last fit.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotFitted`] if [`Self::fit_predict`] has not succeeded.
     pub fn label_medians(&self) -> Result<HashMap<StopLabel, Point>> {
         if !self.fitted {
             return Err(Error::NotFitted);
@@ -271,6 +302,10 @@ where
     }
 
     /// Unique stay medians from the last fit (for plotting).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotFitted`] if [`Self::fit_predict`] has not succeeded.
     pub fn stationary_points(&self) -> Result<&[Point]> {
         if !self.fitted {
             return Err(Error::NotFitted);
@@ -279,6 +314,10 @@ where
     }
 
     /// Labels corresponding to [`Self::stationary_points`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::NotFitted`] if [`Self::fit_predict`] has not succeeded.
     pub fn stationary_labels(&self) -> Result<&[StopLabel]> {
         if !self.fitted {
             return Err(Error::NotFitted);
@@ -324,9 +363,10 @@ where
                 )));
             }
 
-            let times: Vec<f64> = pts.iter().filter_map(|p| p.time).collect();
-            if times.len() > 1 {
-                for w in times.windows(2) {
+            let timestamps: Vec<f64> =
+                pts.iter().filter_map(|p| p.time).collect();
+            if timestamps.len() > 1 {
+                for w in timestamps.windows(2) {
                     if w[0] > w[1] {
                         return Err(Error::InvalidInput(format!(
                             "{prefix}timestamps must be ordered"
@@ -356,6 +396,7 @@ where
 
 /// Builder that constructs a default-wired [`Infostop`].
 #[derive(Debug)]
+#[must_use]
 pub struct InfostopBuilder {
     config: ConfigBuilder,
 }
@@ -410,6 +451,11 @@ impl InfostopBuilder {
         self
     }
 
+    /// Validate hyperparameters and produce an [`Infostop`] model.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] when [`Config::validate`] fails.
     pub fn build(self) -> Result<Infostop> {
         let config = self.config.build()?;
         Infostop::from_config(config)
@@ -466,13 +512,13 @@ mod tests {
     fn synthetic_two_stops() -> Vec<[f64; 2]> {
         let mut trace = Vec::new();
         for i in 0..8 {
-            trace.push([0.0, (i as f64) * 0.01]);
+            trace.push([0.0, f64::from(i) * 0.01]);
         }
         // trip
         trace.push([50.0, 0.0]);
         trace.push([60.0, 0.0]);
         for i in 0..8 {
-            trace.push([100.0, (i as f64) * 0.01]);
+            trace.push([100.0, f64::from(i) * 0.01]);
         }
         trace
     }
@@ -511,7 +557,7 @@ mod tests {
 
         let t1 = synthetic_two_stops();
         let t2: Vec<[f64; 2]> =
-            (0..8).map(|i| [0.0, i as f64 * 0.01]).collect();
+            (0..8).map(|i| [0.0, f64::from(i) * 0.01]).collect();
 
         let labels = model
             .fit_predict_many(&[t1.as_slice(), t2.as_slice()])
@@ -603,10 +649,10 @@ mod tests {
     fn isolated_far_stays() -> Vec<[f64; 2]> {
         let mut trace = Vec::new();
         for i in 0..4 {
-            trace.push([0.0, i as f64 * 0.01]);
+            trace.push([0.0, f64::from(i) * 0.01]);
         }
         for i in 0..4 {
-            trace.push([1000.0, i as f64 * 0.01]);
+            trace.push([1000.0, f64::from(i) * 0.01]);
         }
         trace
     }

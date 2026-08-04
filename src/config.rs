@@ -47,6 +47,12 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Check that hyperparameters are finite and internally consistent.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] when a field is non-finite, non-positive
+    /// where required, or when `max_time_between <= min_staying_time`.
     pub fn validate(&self) -> Result<()> {
         if !self.r1.is_finite() || self.r1 <= 0.0 {
             return Err(Error::InvalidInput(
@@ -92,6 +98,7 @@ impl Config {
 
 /// Fluent builder for [`Config`].
 #[derive(Debug, Clone, Default)]
+#[must_use]
 pub struct ConfigBuilder {
     config: Config,
 }
@@ -159,6 +166,11 @@ impl ConfigBuilder {
         self
     }
 
+    /// Validate hyperparameters and produce a [`Config`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::InvalidInput`] when [`Config::validate`] fails.
     pub fn build(self) -> Result<Config> {
         self.config.validate()?;
         Ok(self.config)
@@ -181,22 +193,27 @@ mod tests {
 
     #[test]
     fn rejects_non_positive_r1() {
-        let mut cfg = Config::default();
-        cfg.r1 = 0.0;
+        let cfg = Config {
+            r1: 0.0,
+            ..Config::default()
+        };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn rejects_invalid_time_ordering() {
-        let mut cfg = Config::default();
-        cfg.min_staying_time = 100.0;
-        cfg.max_time_between = 50.0;
+        let cfg = Config {
+            min_staying_time: 100.0,
+            max_time_between: 50.0,
+            ..Config::default()
+        };
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn rejects_non_finite_hyperparameters() {
-        let cases: &[(&str, fn(&mut Config, f64))] = &[
+        type FieldSetter = fn(&mut Config, f64);
+        let cases: &[(&str, FieldSetter)] = &[
             ("r1", |c, v| c.r1 = v),
             ("r2", |c, v| c.r2 = v),
             ("min_staying_time", |c, v| c.min_staying_time = v),
@@ -220,8 +237,10 @@ mod tests {
     #[test]
     fn accepts_general_min_spatial_resolution() {
         for res in [0.0, 1e-5, 5.0] {
-            let mut cfg = Config::default();
-            cfg.min_spatial_resolution = res;
+            let cfg = Config {
+                min_spatial_resolution: res,
+                ..Config::default()
+            };
             assert!(
                 cfg.validate().is_ok(),
                 "expected min_spatial_resolution={res} to be valid"
@@ -231,8 +250,10 @@ mod tests {
 
     #[test]
     fn rejects_negative_min_spatial_resolution() {
-        let mut cfg = Config::default();
-        cfg.min_spatial_resolution = -1.0;
+        let cfg = Config {
+            min_spatial_resolution: -1.0,
+            ..Config::default()
+        };
         assert!(cfg.validate().is_err());
     }
 }

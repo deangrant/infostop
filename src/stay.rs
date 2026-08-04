@@ -130,11 +130,11 @@ mod tests {
         // Stay A around (0,0), trip, stay B around (100,0)
         let mut pts = Vec::new();
         for i in 0..5 {
-            pts.push(TimedPoint::new(0.0 + (i as f64) * 0.1, 0.0));
+            pts.push(TimedPoint::new(0.0 + f64::from(i) * 0.1, 0.0));
         }
         pts.push(TimedPoint::new(50.0, 0.0)); // trip point
         for i in 0..5 {
-            pts.push(TimedPoint::new(100.0 + (i as f64) * 0.1, 0.0));
+            pts.push(TimedPoint::new(100.0 + f64::from(i) * 0.1, 0.0));
         }
 
         let events =

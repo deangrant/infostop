@@ -326,12 +326,12 @@ where
 
             if self.config.distance_metric == MetricKind::Haversine {
                 for p in *pts {
-                    if !(p.point.x > -90.0 && p.point.x < 90.0) {
+                    if !(-90.0..=90.0).contains(&p.point.x) {
                         return Err(Error::InvalidInput(format!(
                             "{prefix}latitude must be between -90 and 90"
                         )));
                     }
-                    if !(p.point.y > -180.0 && p.point.y < 180.0) {
+                    if !(-180.0..=180.0).contains(&p.point.y) {
                         return Err(Error::InvalidInput(format!(
                             "{prefix}longitude must be between -180 and 180"
                         )));
@@ -498,5 +498,46 @@ mod tests {
             .unwrap();
         assert_eq!(labels.len(), 2);
         assert_eq!(labels[0][0], labels[1][0]);
+    }
+
+    #[test]
+    fn haversine_accepts_poles_and_antimeridian() {
+        let mut model = Infostop::builder()
+            .r1(100.0)
+            .r2(100.0)
+            .min_size(2)
+            .distance_metric(MetricKind::Haversine)
+            .build()
+            .unwrap();
+
+        for point in [
+            [90.0, 0.0],
+            [-90.0, 0.0],
+            [0.0, 180.0],
+            [0.0, -180.0],
+        ] {
+            let trace = [point, point];
+            assert!(
+                model.fit_predict(&trace).is_ok(),
+                "expected inclusive bound {point:?} to validate"
+            );
+        }
+    }
+
+    #[test]
+    fn haversine_rejects_out_of_range_coordinates() {
+        let mut model = Infostop::builder()
+            .r1(100.0)
+            .r2(100.0)
+            .min_size(2)
+            .distance_metric(MetricKind::Haversine)
+            .build()
+            .unwrap();
+
+        let bad_lat = model.fit_predict(&[[91.0, 0.0], [91.0, 0.0]]);
+        assert!(matches!(bad_lat, Err(Error::InvalidInput(_))));
+
+        let bad_lon = model.fit_predict(&[[0.0, 181.0], [0.0, 181.0]]);
+        assert!(matches!(bad_lon, Err(Error::InvalidInput(_))));
     }
 }

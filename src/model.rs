@@ -263,9 +263,7 @@ where
             let labels: Vec<StopLabel> = event_map
                 .into_iter()
                 .map(|e| {
-                    usize::try_from(e)
-                        .map(|i| lookup[i])
-                        .unwrap_or(NON_STOP)
+                    usize::try_from(e).map(|i| lookup[i]).unwrap_or(NON_STOP)
                 })
                 .collect();
             output.push(labels);
@@ -576,12 +574,7 @@ mod tests {
             .build()
             .unwrap();
 
-        for point in [
-            [90.0, 0.0],
-            [-90.0, 0.0],
-            [0.0, 180.0],
-            [0.0, -180.0],
-        ] {
+        for point in [[90.0, 0.0], [-90.0, 0.0], [0.0, 180.0], [0.0, -180.0]] {
             let trace = [point, point];
             assert!(
                 model.fit_predict(&trace).is_ok(),
@@ -670,10 +663,7 @@ mod tests {
 
         let err = model.fit_predict(&isolated_far_stays());
         assert_eq!(err, Err(Error::NoStopsFound));
-        assert!(matches!(
-            model.label_medians(),
-            Err(Error::NotFitted)
-        ));
+        assert!(matches!(model.label_medians(), Err(Error::NotFitted)));
     }
 
     #[test]
@@ -724,10 +714,7 @@ mod tests {
     #[test]
     fn unique_points_merges_after_grid_rounding() {
         let res = 0.1_f64;
-        let mut pts = [
-            Point::new(0.11, 0.0),
-            Point::new(0.14, 0.0),
-        ];
+        let mut pts = [Point::new(0.11, 0.0), Point::new(0.14, 0.0)];
         for p in &mut pts {
             p.x = (p.x / res).round() * res;
             p.y = (p.y / res).round() * res;
@@ -737,5 +724,149 @@ mod tests {
         assert_eq!(inverse, vec![0, 0]);
         assert_eq!(counts, vec![2]);
         assert!((unique[0].x - 0.1).abs() < 1e-12);
+    }
+
+    #[test]
+    fn multi_trace_with_movement_only_second_trace() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .distance_metric(MetricKind::Euclidean)
+            .min_size(2)
+            .build()
+            .unwrap();
+
+        let with_stays = synthetic_two_stops();
+        // Far-apart single samples — never form a stay (min_size=2 unmet per locus).
+        let movement_only = vec![[0.0, 0.0], [500.0, 0.0], [1000.0, 0.0]];
+
+        let labels = model
+            .fit_predict_many(&[
+                with_stays.as_slice(),
+                movement_only.as_slice(),
+            ])
+            .unwrap();
+        assert_eq!(labels.len(), 2);
+        assert_eq!(labels[0].len(), with_stays.len());
+        assert_eq!(labels[1].len(), movement_only.len());
+        assert!(labels[0].iter().any(|&l| l >= 0));
+        assert!(labels[1].iter().all(|&l| l == NON_STOP));
+    }
+
+    #[test]
+    fn multi_trace_distinct_far_destinations() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .distance_metric(MetricKind::Euclidean)
+            .min_size(2)
+            .build()
+            .unwrap();
+
+        let t1: Vec<[f64; 2]> =
+            (0..6).map(|i| [0.0, f64::from(i) * 0.01]).collect();
+        let t2: Vec<[f64; 2]> =
+            (0..6).map(|i| [1000.0, f64::from(i) * 0.01]).collect();
+
+        let labels = model
+            .fit_predict_many(&[t1.as_slice(), t2.as_slice()])
+            .unwrap();
+        assert_ne!(labels[0][0], labels[1][0]);
+        assert!(labels[0][0] >= 0);
+        assert!(labels[1][0] >= 0);
+    }
+
+    #[test]
+    fn empty_fit_predict_many_is_invalid_input() {
+        let mut model = Infostop::builder()
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+        let empty: &[&[[f64; 2]]] = &[];
+        let err = model.fit_predict_many(empty);
+        assert!(matches!(err, Err(Error::InvalidInput(_))));
+    }
+
+    #[test]
+    fn not_fitted_before_any_fit() {
+        let model = Infostop::builder()
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+        assert_eq!(model.label_medians(), Err(Error::NotFitted));
+        assert_eq!(model.stationary_points().err(), Some(Error::NotFitted));
+        assert_eq!(model.stationary_labels().err(), Some(Error::NotFitted));
+    }
+
+    #[test]
+    fn no_stops_when_min_size_unmet() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .min_size(2)
+            .distance_metric(MetricKind::Euclidean)
+            .build()
+            .unwrap();
+        // Each locus visited once only.
+        let trace = [[0.0, 0.0], [100.0, 0.0], [200.0, 0.0]];
+        assert_eq!(model.fit_predict(&trace), Err(Error::NoStopsFound));
+    }
+
+    #[test]
+    fn label_lengths_match_inputs() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .distance_metric(MetricKind::Euclidean)
+            .min_size(2)
+            .build()
+            .unwrap();
+        let t1 = synthetic_two_stops();
+        let t2: Vec<[f64; 2]> =
+            (0..4).map(|i| [0.0, f64::from(i) * 0.01]).collect();
+        let single = model.fit_predict(&t1).unwrap();
+        assert_eq!(single.len(), t1.len());
+
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .distance_metric(MetricKind::Euclidean)
+            .min_size(2)
+            .build()
+            .unwrap();
+        let many = model
+            .fit_predict_many(&[t1.as_slice(), t2.as_slice()])
+            .unwrap();
+        assert_eq!(many[0].len(), t1.len());
+        assert_eq!(many[1].len(), t2.len());
+    }
+
+    #[test]
+    fn visit_counts_affect_fit_via_spatial_resolution() {
+        // Two separate stays whose medians round to the same grid cell.
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .min_spatial_resolution(1.0)
+            .distance_metric(MetricKind::Euclidean)
+            .min_size(2)
+            .label_singleton(true)
+            .build()
+            .unwrap();
+
+        let mut trace = Vec::new();
+        for i in 0..4 {
+            trace.push([0.2, f64::from(i) * 0.01]);
+        }
+        trace.push([50.0, 0.0]);
+        trace.push([60.0, 0.0]);
+        for i in 0..4 {
+            trace.push([0.3, f64::from(i) * 0.01]);
+        }
+        let labels = model.fit_predict(&trace).unwrap();
+        assert!(labels[0] >= 0);
+        assert_eq!(labels[0], labels[labels.len() - 1]);
+        assert_eq!(labels[4], NON_STOP);
+        assert_eq!(model.label_medians().unwrap().len(), 1);
     }
 }

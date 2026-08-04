@@ -40,7 +40,9 @@ impl Network {
         }
         if let Some((_, w)) = self.adj[a].iter_mut().find(|(n, _)| *n == b) {
             *w += weight;
-            if let Some((_, w_rev)) = self.adj[b].iter_mut().find(|(n, _)| *n == a) {
+            if let Some((_, w_rev)) =
+                self.adj[b].iter_mut().find(|(n, _)| *n == a)
+            {
                 *w_rev += weight;
             }
         } else {
@@ -209,7 +211,8 @@ impl MapState {
             return 0.0;
         }
 
-        let (w_src, w_dest, w_other) = self.link_weights(network, node, src, dest);
+        let (w_src, w_dest, w_other) =
+            self.link_weights(network, node, src, dest);
         let s_u = network.strength[node];
 
         let src_stats = self.modules.get(&src).copied().unwrap_or_default();
@@ -226,7 +229,8 @@ impl MapState {
         let src_n2 = src_stats.n_nodes - 1;
         let dest_n2 = dest_stats.n_nodes + 1;
 
-        let q_exit2 = self.q_exit + (delta_exit_src + delta_exit_dest) / self.two_m;
+        let q_exit2 =
+            self.q_exit + (delta_exit_src + delta_exit_dest) / self.two_m;
 
         module_pair_delta_l(
             self.two_m,
@@ -253,7 +257,8 @@ impl MapState {
             return;
         }
 
-        let (w_src, w_dest, w_other) = self.link_weights(network, node, src, dest);
+        let (w_src, w_dest, w_other) =
+            self.link_weights(network, node, src, dest);
         let s_u = network.strength[node];
         let delta_exit_src = -w_dest - w_other + w_src;
         let delta_exit_dest = w_src + w_other - w_dest;
@@ -533,5 +538,41 @@ mod tests {
             );
             assert!(close(state.description_length, l_after, 1e-9));
         }
+    }
+
+    #[test]
+    fn seed_stability_same_seed_same_partition() {
+        let mut net = Network::new(6);
+        net.add_edge(0, 1, 1.0);
+        net.add_edge(1, 2, 1.0);
+        net.add_edge(2, 0, 1.0);
+        net.add_edge(3, 4, 1.0);
+        net.add_edge(4, 5, 1.0);
+        net.add_edge(5, 3, 1.0);
+        net.add_edge(2, 3, 0.05);
+
+        let a = run_infomap(&net, 123, 5);
+        let b = run_infomap(&net, 123, 5);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn disconnected_cliques_form_separate_communities() {
+        let mut net = Network::new(6);
+        // Clique A
+        net.add_edge(0, 1, 1.0);
+        net.add_edge(1, 2, 1.0);
+        net.add_edge(2, 0, 1.0);
+        // Clique B — no bridge
+        net.add_edge(3, 4, 1.0);
+        net.add_edge(4, 5, 1.0);
+        net.add_edge(5, 3, 1.0);
+
+        let labels = run_infomap(&net, 42, 5);
+        assert_eq!(labels[0], labels[1]);
+        assert_eq!(labels[1], labels[2]);
+        assert_eq!(labels[3], labels[4]);
+        assert_eq!(labels[4], labels[5]);
+        assert_ne!(labels[0], labels[3]);
     }
 }

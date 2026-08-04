@@ -28,7 +28,7 @@ impl DistanceMetric for Haversine {
         let lat2 = b.x.to_radians();
         let h = ((d_lat / 2.0).sin().powi(2)
             + (d_lon / 2.0).sin().powi(2) * lat1.cos() * lat2.cos())
-            .clamp(0.0, 1.0);
+        .clamp(0.0, 1.0);
         2.0 * EARTH_RADIUS_M * h.sqrt().asin()
     }
 }
@@ -86,7 +86,10 @@ mod tests {
         let a = Point::lat_lon(0.0, 0.0);
         let b = Point::lat_lon(1e-12, 180.0);
         let d = Haversine.distance(a, b);
-        assert!(d.is_finite(), "near-antipodal distance must be finite, got {d}");
+        assert!(
+            d.is_finite(),
+            "near-antipodal distance must be finite, got {d}"
+        );
         assert!(d > 0.0);
     }
 
@@ -95,5 +98,17 @@ mod tests {
         let a = Point::new(0.0, 0.0);
         let b = Point::new(3.0, 4.0);
         assert!(close(Euclidean.distance(a, b), 5.0, 1e-12));
+    }
+
+    #[test]
+    fn haversine_one_degree_longitude_at_equator() {
+        let a = Point::lat_lon(0.0, 0.0);
+        let b = Point::lat_lon(0.0, 1.0);
+        let d = Haversine.distance(a, b);
+        let expected = EARTH_RADIUS_M * PI / 180.0;
+        assert!(
+            close(d, expected, 1e-6),
+            "1° equator distance {d} vs {expected}"
+        );
     }
 }

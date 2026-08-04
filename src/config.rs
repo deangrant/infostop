@@ -82,7 +82,9 @@ impl Config {
         if self.min_size <= 1 {
             return Err(Error::InvalidInput("`min_size` must be > 1".into()));
         }
-        if !self.min_spatial_resolution.is_finite() || self.min_spatial_resolution < 0.0 {
+        if !self.min_spatial_resolution.is_finite()
+            || self.min_spatial_resolution < 0.0
+        {
             return Err(Error::InvalidInput(
                 "`min_spatial_resolution` must be finite and >= 0".into(),
             ));
@@ -218,7 +220,9 @@ mod tests {
             ("r2", |c, v| c.r2 = v),
             ("min_staying_time", |c, v| c.min_staying_time = v),
             ("max_time_between", |c, v| c.max_time_between = v),
-            ("min_spatial_resolution", |c, v| c.min_spatial_resolution = v),
+            ("min_spatial_resolution", |c, v| {
+                c.min_spatial_resolution = v
+            }),
             ("weight_exponent", |c, v| c.weight_exponent = v),
         ];
 

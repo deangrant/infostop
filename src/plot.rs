@@ -56,7 +56,8 @@ where
         lat_sum += p.x;
         lon_sum += p.y;
     }
-    #[allow(clippy::cast_precision_loss)] // map center; point counts stay modest
+    #[allow(clippy::cast_precision_loss)]
+    // map center; point counts stay modest
     let center_lat = lat_sum / points.len() as f64;
     #[allow(clippy::cast_precision_loss)]
     let center_lon = lon_sum / points.len() as f64;
@@ -147,6 +148,7 @@ fn color_for_label(label: i32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::distance::MetricKind;
 
     #[test]
     fn cdn_head_includes_sri() {
@@ -154,5 +156,64 @@ mod tests {
         assert!(CDN_HEAD.contains("crossorigin=\"anonymous\""));
         assert_eq!(CDN_HEAD.matches("integrity=").count(), 3);
         assert_eq!(CDN_HEAD.matches("crossorigin=").count(), 3);
+    }
+
+    #[cfg(feature = "plot")]
+    #[test]
+    fn plot_rejects_euclidean_model() {
+        let mut model = Infostop::builder()
+            .r1(1.0)
+            .r2(5.0)
+            .distance_metric(MetricKind::Euclidean)
+            .min_size(2)
+            .build()
+            .unwrap();
+        let trace = [
+            [0.0, 0.0],
+            [0.1, 0.0],
+            [0.2, 0.0],
+            [100.0, 0.0],
+            [100.1, 0.0],
+            [100.2, 0.0],
+        ];
+        model.fit_predict(&trace).unwrap();
+        let err =
+            plot_map(&model, std::env::temp_dir().join("infostop_eucl.html"));
+        assert!(matches!(err, Err(Error::InvalidInput(_))));
+    }
+
+    #[cfg(feature = "plot")]
+    #[test]
+    fn plot_requires_fitted_model() {
+        let model = Infostop::new();
+        let err =
+            plot_map(&model, std::env::temp_dir().join("infostop_nofit.html"));
+        assert_eq!(err, Err(Error::NotFitted));
+    }
+
+    #[cfg(feature = "plot")]
+    #[test]
+    fn plot_writes_html_with_leaflet_and_coords() {
+        let mut model = Infostop::builder()
+            .r1(100.0)
+            .r2(100.0)
+            .min_staying_time(50.0)
+            .min_size(2)
+            .build()
+            .unwrap();
+        let trace = [
+            [55.6761, 12.5683, 0.0],
+            [55.6762, 12.5683, 60.0],
+            [55.6761, 12.5684, 120.0],
+        ];
+        model.fit_predict(&trace).unwrap();
+
+        let path = std::env::temp_dir().join("infostop_plot_fixture.html");
+        plot_map(&model, &path).unwrap();
+        let html = fs::read_to_string(&path).unwrap();
+        assert!(html.contains("leaflet"));
+        assert!(html.contains("L.map"));
+        assert!(html.contains("55.676"));
+        let _ = fs::remove_file(&path);
     }
 }

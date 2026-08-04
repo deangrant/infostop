@@ -176,4 +176,95 @@ mod tests {
         // First stay duration 200 >= 150, second stay duration 200 >= 150
         assert_eq!(events.medians.len(), 2);
     }
+
+    #[test]
+    fn max_time_between_boundary_joins_when_equal() {
+        let limit = 100.0;
+        let pts = vec![
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, limit),
+            TimedPoint::with_time(0.2, 0.0, 2.0 * limit),
+        ];
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 150.0, limit, &Euclidean);
+        assert_eq!(events.medians.len(), 1);
+        assert!(events.event_map.iter().all(|&e| e == 0));
+    }
+
+    #[test]
+    fn max_time_between_boundary_splits_when_just_over() {
+        let limit = 100.0;
+        // Two long stays; gap between them is just over `limit`.
+        let pts = vec![
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, 80.0),
+            TimedPoint::with_time(0.2, 0.0, 160.0),
+            TimedPoint::with_time(0.3, 0.0, 160.0 + limit + 1.0),
+            TimedPoint::with_time(0.4, 0.0, 160.0 + limit + 1.0 + 80.0),
+            TimedPoint::with_time(0.5, 0.0, 160.0 + limit + 1.0 + 160.0),
+        ];
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 150.0, limit, &Euclidean);
+        assert_eq!(events.medians.len(), 2);
+    }
+
+    #[test]
+    fn final_group_accepted_when_size_and_duration_met() {
+        let pts = vec![
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, 100.0),
+            TimedPoint::with_time(0.2, 0.0, 200.0),
+        ];
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 150.0, 1000.0, &Euclidean);
+        assert_eq!(events.medians.len(), 1);
+        assert!(events.event_map.iter().all(|&e| e == 0));
+    }
+
+    #[test]
+    fn final_group_rejected_when_duration_too_short() {
+        let pts = vec![
+            TimedPoint::with_time(0.0, 0.0, 0.0),
+            TimedPoint::with_time(0.1, 0.0, 50.0),
+            TimedPoint::with_time(0.2, 0.0, 100.0),
+        ];
+        let events =
+            get_stationary_events(&pts, 5.0, 2, 150.0, 1000.0, &Euclidean);
+        assert!(events.medians.is_empty());
+        assert!(events.event_map.iter().all(|&e| e == NON_STOP));
+    }
+
+    #[test]
+    fn haversine_near_r1_joins_then_splits() {
+        use crate::distance::{Haversine, EARTH_RADIUS_M};
+        use std::f64::consts::PI;
+
+        // ~1 m per (1/R) radian in longitude at the equator ≈ degrees.
+        let meters_to_deg = 180.0 / (PI * EARTH_RADIUS_M);
+        let r1 = 50.0;
+        let within = 15.0 * meters_to_deg;
+        let beyond = 80.0 * meters_to_deg;
+
+        let pts = vec![
+            TimedPoint::new(0.0, 0.0),
+            TimedPoint::new(0.0, within),
+            TimedPoint::new(0.0, within * 2.0),
+            TimedPoint::new(0.0, beyond),
+            TimedPoint::new(0.0, beyond + within),
+            TimedPoint::new(0.0, beyond + within * 2.0),
+        ];
+
+        assert!(Haversine.distance(pts[0].point, pts[2].point) < r1);
+        assert!(Haversine.distance(pts[0].point, pts[3].point) > r1);
+
+        let events =
+            get_stationary_events(&pts, r1, 2, 300.0, 86400.0, &Haversine);
+        assert_eq!(events.medians.len(), 2);
+        assert_eq!(events.event_map[0], 0);
+        assert_eq!(events.event_map[1], 0);
+        assert_eq!(events.event_map[2], 0);
+        assert_eq!(events.event_map[3], 1);
+        assert_eq!(events.event_map[4], 1);
+        assert_eq!(events.event_map[5], 1);
+    }
 }

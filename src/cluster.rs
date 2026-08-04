@@ -109,7 +109,8 @@ pub fn build_edges(
             if neighbor <= node {
                 continue;
             }
-            #[allow(clippy::cast_precision_loss)] // edge weight from visit counts
+            #[allow(clippy::cast_precision_loss)]
+            // edge weight from visit counts
             let mut weight = counts[node].max(counts[neighbor]) as f64;
             if let Some(dists) = distances {
                 let d = dists[node][k].max(1e-12);
@@ -144,5 +145,34 @@ mod tests {
         let edges = vec![(0, 1, 1.0)];
         let labels = detector.cluster(&edges, 3, false, &[2]);
         assert_eq!(labels[2], NON_STOP);
+    }
+
+    #[test]
+    fn build_edges_unweighted_uses_max_count() {
+        let neighbors = vec![vec![0, 1], vec![1, 0]];
+        let counts = vec![3usize, 5];
+        let (edges, singletons) = build_edges(&neighbors, None, &counts, 1.0);
+        assert!(singletons.is_empty());
+        assert_eq!(edges.len(), 1);
+        assert_eq!(edges[0].0, 0);
+        assert_eq!(edges[0].1, 1);
+        assert!((edges[0].2 - 5.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn build_edges_weighted_scales_by_inverse_distance() {
+        let neighbors = vec![vec![0, 1], vec![1, 0]];
+        let distances = vec![vec![0.0, 2.0], vec![2.0, 0.0]];
+        let counts = vec![1usize, 1];
+        let (edges, _) =
+            build_edges(&neighbors, Some(&distances), &counts, 1.0);
+        assert_eq!(edges.len(), 1);
+        // max(count)=1, distance=2, exponent=1 → 1 * 2^(-1) = 0.5
+        assert!((edges[0].2 - 0.5).abs() < 1e-12);
+
+        let (edges2, _) =
+            build_edges(&neighbors, Some(&distances), &counts, 2.0);
+        assert!((edges2[0].2 - 0.25).abs() < 1e-12);
+        assert!(edges2[0].2 < edges[0].2);
     }
 }

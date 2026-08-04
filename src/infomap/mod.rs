@@ -38,8 +38,15 @@ impl Network {
         if a == b || weight <= 0.0 {
             return;
         }
-        self.adj[a].push((b, weight));
-        self.adj[b].push((a, weight));
+        if let Some((_, w)) = self.adj[a].iter_mut().find(|(n, _)| *n == b) {
+            *w += weight;
+            if let Some((_, w_rev)) = self.adj[b].iter_mut().find(|(n, _)| *n == a) {
+                *w_rev += weight;
+            }
+        } else {
+            self.adj[a].push((b, weight));
+            self.adj[b].push((a, weight));
+        }
         self.strength[a] += weight;
         self.strength[b] += weight;
         self.total_weight += weight;
@@ -427,6 +434,23 @@ mod tests {
 
     fn close(a: f64, b: f64, tol: f64) -> bool {
         (a - b).abs() <= tol
+    }
+
+    #[test]
+    fn add_edge_merges_duplicate_pairs() {
+        let mut net = Network::new(2);
+        net.add_edge(0, 1, 1.0);
+        net.add_edge(0, 1, 2.0);
+
+        assert_eq!(net.adj[0].len(), 1);
+        assert_eq!(net.adj[1].len(), 1);
+        assert!(close(net.adj[0][0].1, 3.0, 1e-12));
+        assert!(close(net.adj[1][0].1, 3.0, 1e-12));
+        assert_eq!(net.adj[0][0].0, 1);
+        assert_eq!(net.adj[1][0].0, 0);
+        assert!(close(net.strength[0], 3.0, 1e-12));
+        assert!(close(net.strength[1], 3.0, 1e-12));
+        assert!(close(net.total_weight, 3.0, 1e-12));
     }
 
     #[test]

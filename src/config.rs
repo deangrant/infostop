@@ -48,20 +48,24 @@ impl Default for Config {
 
 impl Config {
     pub fn validate(&self) -> Result<()> {
-        if self.r1 <= 0.0 {
-            return Err(Error::InvalidInput("`r1` must be > 0".into()));
-        }
-        if self.r2 <= 0.0 {
-            return Err(Error::InvalidInput("`r2` must be > 0".into()));
-        }
-        if self.min_staying_time <= 0.0 {
+        if !self.r1.is_finite() || self.r1 <= 0.0 {
             return Err(Error::InvalidInput(
-                "`min_staying_time` must be > 0".into(),
+                "`r1` must be finite and > 0".into(),
             ));
         }
-        if self.max_time_between <= 0.0 {
+        if !self.r2.is_finite() || self.r2 <= 0.0 {
             return Err(Error::InvalidInput(
-                "`max_time_between` must be > 0".into(),
+                "`r2` must be finite and > 0".into(),
+            ));
+        }
+        if !self.min_staying_time.is_finite() || self.min_staying_time <= 0.0 {
+            return Err(Error::InvalidInput(
+                "`min_staying_time` must be finite and > 0".into(),
+            ));
+        }
+        if !self.max_time_between.is_finite() || self.max_time_between <= 0.0 {
+            return Err(Error::InvalidInput(
+                "`max_time_between` must be finite and > 0".into(),
             ));
         }
         if self.max_time_between <= self.min_staying_time {
@@ -75,6 +79,11 @@ impl Config {
         if !(0.0..=1.0).contains(&self.min_spatial_resolution) {
             return Err(Error::InvalidInput(
                 "`min_spatial_resolution` must be within [0, 1]".into(),
+            ));
+        }
+        if !self.weight_exponent.is_finite() {
+            return Err(Error::InvalidInput(
+                "`weight_exponent` must be finite".into(),
             ));
         }
         Ok(())
@@ -158,5 +167,52 @@ impl ConfigBuilder {
     /// Build without validating (caller must validate). Prefer [`Self::build`].
     pub fn build_unchecked(self) -> Config {
         self.config
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_config_is_valid() {
+        assert!(Config::default().validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_non_positive_r1() {
+        let mut cfg = Config::default();
+        cfg.r1 = 0.0;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_invalid_time_ordering() {
+        let mut cfg = Config::default();
+        cfg.min_staying_time = 100.0;
+        cfg.max_time_between = 50.0;
+        assert!(cfg.validate().is_err());
+    }
+
+    #[test]
+    fn rejects_non_finite_hyperparameters() {
+        let cases: &[(&str, fn(&mut Config, f64))] = &[
+            ("r1", |c, v| c.r1 = v),
+            ("r2", |c, v| c.r2 = v),
+            ("min_staying_time", |c, v| c.min_staying_time = v),
+            ("max_time_between", |c, v| c.max_time_between = v),
+            ("weight_exponent", |c, v| c.weight_exponent = v),
+        ];
+
+        for (name, set) in cases {
+            for bad in [f64::NAN, f64::INFINITY] {
+                let mut cfg = Config::default();
+                set(&mut cfg, bad);
+                assert!(
+                    cfg.validate().is_err(),
+                    "{name} must reject non-finite value {bad}"
+                );
+            }
+        }
     }
 }

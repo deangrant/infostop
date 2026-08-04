@@ -1,0 +1,13 @@
+# RustSec cargo-audit configuration for this crate.
+# See: https://github.com/rustsec/rustsec/blob/main/cargo-audit/audit.toml.example
+
+[advisories]
+# Add RUSTSEC-… IDs here only with a documented reason.
+ignore = []
+# Report informational advisory categories as warnings.
+informational_warnings = ["unmaintained", "unsound", "notice"]
+severity_threshold = "low"
+
+[yanked]
+enabled = true
+update_index = true

@@ -200,6 +200,25 @@ Run the tests.
 cargo test
 ```
 
+## Security
+
+Use [cargo-audit](https://github.com/rustsec/rustsec/tree/main/cargo-audit) to check dependencies against the RustSec advisory database.
+
+Install the tool.
+
+```bash
+cargo install cargo-audit --locked
+```
+
+Generate a lockfile if you do not have one, then run the audit. This project ignores `Cargo.lock` in git (library convention). Generate the lockfile locally when you need it.
+
+```bash
+cargo generate-lockfile
+cargo audit
+```
+
+GitHub Actions runs the same check on dependency and config changes, on a daily schedule, and on manual workflow dispatch. See [`.github/workflows/audit.yml`](.github/workflows/audit.yml). Shared policy lives in [`.cargo/audit.toml`](.cargo/audit.toml).
+
 ## License
 
 This project uses the MIT license. See [LICENSE](LICENSE).

@@ -6,6 +6,7 @@ fuller context, see [README.md](README.md).
 ## Docs
 
 - [`.agents/docs/ARCHITECTURE.md`](.agents/docs/ARCHITECTURE.md) — high-level system architecture and diagrams
+- [DeepWiki](https://deepwiki.com/deangrant/infostop) — indexed project wiki (architecture, API, pipeline)
 
 ## Rules
 

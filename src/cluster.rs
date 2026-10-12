@@ -150,7 +150,7 @@ mod tests {
         let neighbors = vec![vec![0, 1], vec![1, 0]];
         let counts = vec![3usize, 5];
         let (edges, singletons) = build_edges(&neighbors, None, &counts, 1.0);
-        assert!(singletons.is_empty());
+        assert_eq!(singletons, [] as [usize; 0]);
         assert_eq!(edges.len(), 1);
         assert_eq!(edges[0].0, 0);
         assert_eq!(edges[0].1, 1);

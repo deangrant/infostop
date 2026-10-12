@@ -156,7 +156,7 @@ mod tests {
         ];
         let events =
             get_stationary_events(&pts, 5.0, 2, 300.0, 86400.0, &Euclidean);
-        assert!(events.medians.is_empty());
+        assert_eq!(events.medians, [] as [Point; 0]);
         assert!(events.event_map.iter().all(|&l| l == NON_STOP));
     }
 
@@ -230,7 +230,7 @@ mod tests {
         ];
         let events =
             get_stationary_events(&pts, 5.0, 2, 150.0, 1000.0, &Euclidean);
-        assert!(events.medians.is_empty());
+        assert_eq!(events.medians, [] as [Point; 0]);
         assert!(events.event_map.iter().all(|&e| e == NON_STOP));
     }
 
